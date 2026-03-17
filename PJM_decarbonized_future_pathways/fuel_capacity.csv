@@ -1,0 +1,10 @@
+Generators,Fuel type,Maximum Capacity (MW),Minimum Capacity (MW)
+CC,Natural Gas,55606.5,22828
+CT,Natural Gas,18535.5,0
+Coal,Coal,35809,6344
+Oil,Oil,4975,0
+Nuclear,Nuclear,33829,25482
+ Biomass,Multiple Fuels (Biomass),3220,0
+Hydro,Hydro,6266,0
+Solar,Solar,7953,0
+Wind,Wind,9719,0

@@ -1,0 +1,10 @@
+Generators,Fuel type,Heat Rate (MMBtu/MWh),VOM ($/MWh),Fuel Cost ($/MMBtu),Maximum Capacity (MW),Minimum Capacity (MW),CO2 Emissions Rate (tons/MWh)
+CC,Natural Gas,7,4.5,5.772,55606.5,0,0.3
+CT,Natural Gas,10,5.5,5.772,7535.5,0,0.7
+Coal,Coal,12,2.6,3.48,15809,0,1.2
+Oil,Oil,12,5.7,18.72,0,0,2
+Nuclear,Nuclear,10.5,3,1.267434,33829,0,0
+Biomass,Multiple Fuels (Biomass),13.5,50,0,3220,0,2
+Hydro,Hydro,0,1.5,0,6266,0,0
+Solar,Solar,0,0,0,84953,0,0
+Wind,Wind,0,0,0,125719,0,0

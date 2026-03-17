@@ -1,0 +1,10 @@
+Generators,Fuel type,Heat Rate (MMBtu/MWh),VOM ($/MWh),Fuel Cost ($/MMBtu),CO2 Emissions Rate (tons/MWh)
+CC,Natural Gas,7,4.5,3.9,0.3
+CT,Natural Gas,10,5.5,3.9,0.7
+Coal,Coal,12,2.6,2.9,1.2
+Oil,Oil,12,5.7,12,2
+Nuclear,Nuclear,10.5,3,0.98,0
+ Biomass,Multiple Fuels (Biomass),13.5,50,0,2
+Hydro,Hydro,0,1.5,0,0
+Solar,Solar,0,0,0,0
+Wind,Wind,0,0,0,0

@@ -1,0 +1,4 @@
+Generator,Fuel type,Heat Rate (MMBtu/MWh),VOM ($/MWh),Maximum Capacity (MW),Minimum Capacity (MW),Fuel Cost ($/MMBtu),Maximum Energy Capacity (MWh),Initial SOC (MWh),RTE,CO2 Emissions Rate (tons/MWh)
+Battery,Battery,0,0,17000,0,0,68000,0,0.9,0
+Hydrogen,Hydrogen,0,0,17000,0,7.4,12240000,0,0.4,0
+PHS,PHS,0,0,17000,0,0,255000,0,0.8,0
