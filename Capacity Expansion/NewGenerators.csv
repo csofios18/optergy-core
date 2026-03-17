@@ -1,0 +1,4 @@
+Generator,Fuel Type,OpCost ($/MWh),CC ($/MW),Maximum Capacity (MW)
+WindNew,Wind,0,150000,250
+CCNew,Natural gas,30,100000,400
+CTNew,Natural gas,53,75000,50

@@ -1,0 +1,2 @@
+Generator,Fuel Type,Heat Rate (MMBtu/MWh),Variable O&M ($/MWh),Maximum Capacity (MW),Fuel Cost ($/MMBtu),Maximum Energy Capacity (MWh),Initial SOC (MWh),RTE,CO2 Emissions Rate (tons/MWh)
+Sto1,Storage,0,0,100,0,400,0,0.9,0

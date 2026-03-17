@@ -1,0 +1,5 @@
+Generator,Fuel Type,Heat Rate (MMBtu/MWh),Variable O&M ($/MWh),Maximum Capacity (MW),Fuel Cost ($/MMBtu),CO2 Emissions Rate (tons/MWh),Zone
+Win1,Wind,0,0,200,0,0,z2
+Win2,Wind,0,0,200,0,0,z2
+Win3,Wind,0,0,200,0,0,z2
+Win4,Wind,0,0,200,0,0,z2

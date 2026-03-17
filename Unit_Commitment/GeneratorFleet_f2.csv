@@ -1,0 +1,7 @@
+Generator,Fuel Type,Heat Rate (MMBtu/MWh),Variable O&M ($/MWh),Maximum Capacity (MW),Fuel Cost ($/MMBtu),Minimum Stable Load (MW),Ramp Rate (MW/hr),Startup Costs ($/startup)
+CC1,Natural gas,7,5,150,4,60,100,"15,000"
+CC2,Natural gas,8,5,200,4,80,130,"20,000"
+CC3,Natural gas,9,5,250,4,100,170,"25,000"
+CT1,Natural gas,15,10,50,4,20,50,"1,250"
+Coal1,Coal,12,10,500,3,180,100,"50,000"
+Nuc1,Nuclear,10,5,500,1,450,30,"250,000"
