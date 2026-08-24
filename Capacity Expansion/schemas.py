@@ -1,45 +1,49 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[ ]:
+# In[4]:
 
 
+#1
 from pydantic import BaseModel, Field
-from typing import List, Dict
+from typing import List, Dict, Optional
 
-class GeneratorTech(BaseModel):
+class ExistingGenerator(BaseModel):
     name: str
-    is_variable: bool = False  # True για ΑΠΕ (Φ/Β, Αιολικά)
-    capex_per_mw: float = Field(..., ge=0, description="Ετήσιο ισοδύναμο CAPEX ($/MW/year)")
-    om_fixed_per_mw: float = Field(..., ge=0, description="Σταθερό O&M ($/MW/year)")
-    var_cost_per_mwh: float = Field(..., ge=0, description="Μεταβλητό κόστος / Καύσιμο ($/MWh)")
-    co2_tons_per_mwh: float = Field(default=0.0, ge=0, description="Εκπομπές CO2 (tons/MWh)")
-    existing_capacity_mw: float = Field(default=0.0, ge=0)
-    max_new_capacity_mw: float = Field(default=10000.0, ge=0)
+    fuel_type: str
+    capacity_mw: float = Field(..., ge=0)
+    heat_rate: float = Field(default=0.0, ge=0)  # MMBtu/MWh
+    fuel_cost: float = Field(default=0.0, ge=0)  # $/MMBtu
+    vom_cost: float = Field(default=0.0, ge=0)   # $/MWh
+    co2_tons_per_mwh: float = Field(default=0.0, ge=0)
+    is_variable: bool = False
+
+class CandidateGenerator(BaseModel):
+    name: str
+    fuel_type: str
+    unit_capacity_mw: float = Field(..., ge=0)  # Ισχύς ανά block (MW)
+    annual_capex_per_mw: float = Field(..., ge=0) # $/MW/year
+    op_cost_per_mwh: float = Field(..., ge=0)    # $/MWh
+    co2_tons_per_mwh: float = Field(default=0.0, ge=0)
+    is_variable: bool = False
+    is_integer: bool = True  # True για διακριτές μονάδες (Binary/Integer), False για συνεχές sizing
 
 class SystemParameters(BaseModel):
-    prm_margin: float = Field(default=0.15, ge=0, description="Planning Reserve Margin (π.χ. 15%)")
-    co2_cap_tons: float = Field(default=1e9, ge=0, description="Ετήσιο ανώτατο όριο CO2")
-    voLL: float = Field(default=3000.0, ge=0, description="Value of Lost Load ($/MWh)")
+    prm_margin: float = Field(default=1.15, ge=1.0) # 1.15 = 115% της αιχμής
+    co2_cap_tons: Optional[float] = None            # Συνολικό όριο CO2 για την περίοδο
 
 class ExpansionInput(BaseModel):
     system_params: SystemParameters
-    technologies: List[GeneratorTech]
-    demand_profile: List[float]  # 8760 ώρες (ή συντομότερη χρονοσειρά)
-    # capacity_factors: Dict[TechName, List[float]] για ΑΠΕ
-    capacity_factors: Dict[str, List[float]] = Field(default_factory=dict)
-
-class GenerationDetail(BaseModel):
-    tech_name: str
-    capacity_mw: float
-    total_generation_mwh: float
-    annual_cost: float
+    existing_fleet: List[ExistingGenerator]
+    candidate_fleet: List[CandidateGenerator]
+    demand_profile: List[float] # MWh ανά ώρα
+    solar_cfs: Dict[str, List[float]] = Field(default_factory=dict)
+    wind_cfs: Dict[str, List[float]] = Field(default_factory=dict)
 
 class ExpansionResults(BaseModel):
     status: str
     total_cost: float
-    unserved_energy_mwh: float
+    units_built: Dict[str, float]       # Αριθμός μονάδων/blocks που χτίστηκαν
+    new_capacity_mw: Dict[str, float]   # Νέα ισχύς (MW)
     co2_emissions_tons: float
-    built_capacities: Dict[str, float]  # Tech -> Total MW
-    details: List[GenerationDetail]
-
+    generation_mwh: Dict[str, float]
