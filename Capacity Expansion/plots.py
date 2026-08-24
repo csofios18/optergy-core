@@ -4,24 +4,26 @@
 # In[ ]:
 
 
+from typing import Dict, List
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from typing import Dict
-from schemas import OptimizationResult
+from schemas import ExpansionResults
+
 
 def plot_expansion_results(
-    results_no_cap: OptimizationResult,
-    results_cap: OptimizationResult,
+    results_no_cap: ExpansionResults,
+    results_cap: ExpansionResults,
     demand_profile: list,
     co2_cap_limit: float,
     hours_to_plot: int = 168
 ):
     """
-    Παράγει τα 4 κλασικά γραφήματα σύγκρισης (Cost, CO2, Investments, Dispatch)
-    όπως στο αρχικό Jupyter Notebook.
+    Παράγει τα 4 κλασικά γραφήματα σύγκρισης (Cost, CO2, Investments, Dispatch).
     """
-    plt.style.use('seaborn-v0_8-whitegrid' if 'seaborn-v0_8-whitegrid' in plt.style.available else 'default')
+    plt.style.use(
+        'seaborn-v0_8-whitegrid' if 'seaborn-v0_8-whitegrid' in plt.style.available else 'default'
+    )
 
     # ---------------------------------------------------------
     # GRAPH 1 & 2: Cost & CO2 Emissions Comparison
@@ -38,17 +40,36 @@ def plot_expansion_results(
     axes[0].set_title('Total System Cost Comparison')
     for bar in bars1:
         yval = bar.get_height()
-        axes[0].text(bar.get_x() + bar.get_width()/2, yval * 1.01, f"€{yval:,.0f}", ha='center', va='bottom', fontweight='bold')
+        axes[0].text(
+            bar.get_x() + bar.get_width() / 2,
+            yval * 1.01,
+            f"€{yval:,.0f}",
+            ha='center',
+            va='bottom',
+            fontweight='bold'
+        )
 
     # Bar 2: CO2 Emissions
     bars2 = axes[1].bar(scenarios, emissions, color=['#e74c3c', '#2ecc71'], width=0.5)
-    axes[1].axhline(y=co2_cap_limit, color='red', linestyle='--', label=f'CO2 Cap ({co2_cap_limit:,.0f} t)')
+    axes[1].axhline(
+        y=co2_cap_limit,
+        color='red',
+        linestyle='--',
+        label=f'CO2 Cap ({co2_cap_limit:,.0f} t)'
+    )
     axes[1].set_ylabel('CO2 Emissions (Tons)')
     axes[1].set_title('Total CO2 Emissions Comparison')
     axes[1].legend()
     for bar in bars2:
         yval = bar.get_height()
-        axes[1].text(bar.get_x() + bar.get_width()/2, yval * 1.01, f"{yval:,.0f} t", ha='center', va='bottom', fontweight='bold')
+        axes[1].text(
+            bar.get_x() + bar.get_width() / 2,
+            yval * 1.01,
+            f"{yval:,.0f} t",
+            ha='center',
+            va='bottom',
+            fontweight='bold'
+        )
 
     plt.tight_layout()
     plt.show()
@@ -57,22 +78,29 @@ def plot_expansion_results(
     # GRAPH 3: New Installed Capacity Built (MW)
     # ---------------------------------------------------------
     fig, ax = plt.subplots(figsize=(9, 5))
-    
-    all_candidates = sorted(list(set(list(results_no_cap.new_capacity_mw.keys()) + list(results_cap.new_capacity_mw.keys()))))
+
+    all_candidates = sorted(
+        list(
+            set(
+                list(results_no_cap.new_capacity_mw.keys())
+                + list(results_cap.new_capacity_mw.keys())
+            )
+        )
+    )
     mw_no_cap = [results_no_cap.new_capacity_mw.get(c, 0.0) for c in all_candidates]
     mw_cap = [results_cap.new_capacity_mw.get(c, 0.0) for c in all_candidates]
 
     x = np.arange(len(all_candidates))
     width = 0.35
 
-    ax.bar(x - width/2, mw_no_cap, width, label='Without CO2 Cap', color='#3498db')
-    ax.bar(x + width/2, mw_cap, width, label='With CO2 Cap', color='#2ecc71')
+    ax.bar(x - width / 2, mw_no_cap, width, label='Without CO2 Cap', color='#3498db')
+    ax.bar(x + width / 2, mw_cap, width, label='With CO2 Cap', color='#2ecc71')
     ax.set_ylabel('New Built Capacity (MW)')
     ax.set_title('Investment Decisions in Candidate Units')
     ax.set_xticks(x)
     ax.set_xticklabels(all_candidates)
     ax.legend()
-    
+
     plt.tight_layout()
     plt.show()
 
@@ -88,18 +116,21 @@ def plot_expansion_results(
     # Plot Unconstrained
     df_no_cap.plot(kind='area', stacked=True, ax=ax1, alpha=0.85, colormap='tab10')
     ax1.plot(demand_sub, color='black', linewidth=2, linestyle='--', label='System Demand')
-    ax1.set_title(f'Hourly Dispatch Profile - Unconstrained Scenario (First {hours_to_plot} Hours)')
+    ax1.set_title(
+        f'Hourly Dispatch Profile - Unconstrained Scenario (First {hours_to_plot} Hours)'
+    )
     ax1.set_ylabel('Power Generation (MW)')
     ax1.legend(loc='center left', bbox_to_anchor=(1.01, 0.5))
 
     # Plot Constrained
     df_cap.plot(kind='area', stacked=True, ax=ax2, alpha=0.85, colormap='tab10')
     ax2.plot(demand_sub, color='black', linewidth=2, linestyle='--', label='System Demand')
-    ax2.set_title(f'Hourly Dispatch Profile - CO2 Cap Scenario (First {hours_to_plot} Hours)')
+    ax2.set_title(
+        f'Hourly Dispatch Profile - CO2 Cap Scenario (First {hours_to_plot} Hours)'
+    )
     ax2.set_xlabel('Hour (t)')
     ax2.set_ylabel('Power Generation (MW)')
     ax2.legend(loc='center left', bbox_to_anchor=(1.01, 0.5))
 
     plt.tight_layout()
     plt.show()
-
