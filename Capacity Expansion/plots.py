@@ -109,12 +109,15 @@ def plot_expansion_results(
     # ---------------------------------------------------------
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 9), sharex=True)
 
-    df_no_cap = pd.DataFrame(results_no_cap.dispatch_profile_mw).iloc[:hours_to_plot]
-    df_cap = pd.DataFrame(results_cap.dispatch_profile_mw).iloc[:hours_to_plot]
+    # 1. Μετατροπή σε DataFrame
+    # 2. .clip(lower=0) για να μηδενιστούν οι απειροελάχιστες αρνητικές τιμές του solver (π.χ. -1e-15)
+    # 3. .iloc[:hours_to_plot] για να κόψουμε ακριβώς τις ίδιες ώρες με το demand
+    df_no_cap_sub = pd.DataFrame(results_no_cap.dispatch_profile_mw).clip(lower=0).iloc[:hours_to_plot]
+    df_cap_sub = pd.DataFrame(results_cap.dispatch_profile_mw).clip(lower=0).iloc[:hours_to_plot]
     demand_sub = demand_profile[:hours_to_plot]
 
     # Plot Unconstrained
-    df_no_cap.plot(kind='area', stacked=True, ax=ax1, alpha=0.85, colormap='tab10')
+    df_no_cap_sub.plot(kind='area', stacked=True, ax=ax1, alpha=0.85, colormap='tab10')
     ax1.plot(demand_sub, color='black', linewidth=2, linestyle='--', label='System Demand')
     ax1.set_title(
         f'Hourly Dispatch Profile - Unconstrained Scenario (First {hours_to_plot} Hours)'
@@ -123,7 +126,7 @@ def plot_expansion_results(
     ax1.legend(loc='center left', bbox_to_anchor=(1.01, 0.5))
 
     # Plot Constrained
-    df_cap.plot(kind='area', stacked=True, ax=ax2, alpha=0.85, colormap='tab10')
+    df_cap_sub.plot(kind='area', stacked=True, ax=ax2, alpha=0.85, colormap='tab10')
     ax2.plot(demand_sub, color='black', linewidth=2, linestyle='--', label='System Demand')
     ax2.set_title(
         f'Hourly Dispatch Profile - CO2 Cap Scenario (First {hours_to_plot} Hours)'
