@@ -41,10 +41,8 @@ class ExpansionInput(BaseModel):
     existing_fleet: List[ExistingGenerator]
     candidate_fleet: List[CandidateGenerator]
     demand_profile: List[float]  # MWh ανά ώρα
-    solar_cfs: Dict[str, List[float]] = Field(default_factory=dict)
-    wind_cfs: Dict[str, List[float]] = Field(default_factory=dict)
-
-
+    vre_cfs: Dict[str, List[float]] = {}
+    
 class ExpansionResults(BaseModel):
     status: str
     total_cost: float
@@ -53,7 +51,8 @@ class ExpansionResults(BaseModel):
     co2_emissions_tons: float
     generation_mwh: Dict[str, float]
     dispatch_profile_mw: Dict[str, List[float]] = Field(default_factory=dict)  # Required for plots.py
-
+    marginal_prices_per_mwh: List[float] = Field(default_factory=list)
+    average_marginal_price: float = 0.0
 
 # Alias to ensure backwards compatibility with plot imports
 OptimizationResult = ExpansionResults

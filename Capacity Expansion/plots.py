@@ -8,7 +8,7 @@ from typing import Dict, List
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from schemas import ExpansionResults
+from .schemas import ExpansionResults
 
 
 def plot_expansion_results(
@@ -137,3 +137,23 @@ def plot_expansion_results(
 
     plt.tight_layout()
     plt.show()
+    
+    # GRAPH 5: Hourly Marginal Prices / LMPs (€/MWh)
+    # ---------------------------------------------------------
+    if results_no_cap.marginal_prices_per_mwh and results_cap.marginal_prices_per_mwh:
+        fig, ax = plt.subplots(figsize=(14, 5))
+        
+        lmp_no_cap = results_no_cap.marginal_prices_per_mwh[:hours_to_plot]
+        lmp_cap = results_cap.marginal_prices_per_mwh[:hours_to_plot]
+        
+        ax.plot(lmp_no_cap, label=f'Without CO2 Cap (Avg: €{results_no_cap.average_marginal_price:.1f}/MWh)', color='#3498db', linewidth=1.8)
+        ax.plot(lmp_cap, label=f'With CO2 Cap (Avg: €{results_cap.average_marginal_price:.1f}/MWh)', color='#e74c3c', linewidth=1.8, linestyle='--')
+        
+        ax.set_title(f'Hourly Electricity Marginal Price / Shadow Price (First {hours_to_plot} Hours)')
+        ax.set_xlabel('Hour (t)')
+        ax.set_ylabel('Marginal Price (€/MWh)')
+        ax.legend(loc='upper right')
+        
+        plt.tight_layout()
+        plt.show()
+

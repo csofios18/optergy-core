@@ -3,22 +3,18 @@
 
 # In[ ]:
 
-
 import pyomo.environ as pyo
 from schemas import ExpansionInput, ExpansionResults
 
-
 def build_and_solve_expansion(
-    inputs: ExpansionInput, solver_name: str = "glpk"
+    inputs: ExpansionInput, solver_name: str = "appsi_highs"
 ) -> ExpansionResults:
     model = pyo.ConcreteModel(name="Capacity_Expansion_Exact")
 
     # Sets
     T = list(range(len(inputs.demand_profile)))
     hours_count = len(T)
-    time_scaling_factor = (
-        hours_count / 8760.0
-    )  # Αναλογία CAPEX για τις ώρες του simulation
+    time_scaling_factor = hours_count / 8760.0
 
     EX = [g.name for g in inputs.existing_fleet]
     NEW = [g.name for g in inputs.candidate_fleet]
@@ -37,7 +33,6 @@ def build_and_solve_expansion(
     model.vPowerEx = pyo.Var(model.EX, model.T, domain=pyo.NonNegativeReals)
     model.vPowerNew = pyo.Var(model.NEW, model.T, domain=pyo.NonNegativeReals)
 
-    # Investment decision: Integer/Binary or Continuous depending on config
     def vb_domain_rule(m, g):
         return (
             pyo.NonNegativeIntegers
@@ -45,7 +40,7 @@ def build_and_solve_expansion(
             else pyo.NonNegativeReals
         )
 
-    model.vb = pyo.Var(model.NEW, domain=pyo.NonNegativeIntegers)
+    model.vb = pyo.Var(model.NEW, domain=vb_domain_rule)
 
     # Constraints
 
@@ -61,10 +56,11 @@ def build_and_solve_expansion(
     # 2. Existing Capacity & CF Limits
     def ex_cap_rule(m, g, t):
         gen_info = ex_dict[g]
-        if gen_info.is_variable and g in inputs.solar_cfs:
+        cf_profile = inputs.vre_cfs.get(g)
+        if gen_info.is_variable and cf_profile is not None:
             return (
                 m.vPowerEx[g, t]
-                <= gen_info.capacity_mw * inputs.solar_cfs[g][t]
+                <= gen_info.capacity_mw * cf_profile[t]
             )
         return m.vPowerEx[g, t] <= gen_info.capacity_mw
 
@@ -74,9 +70,10 @@ def build_and_solve_expansion(
     def new_cap_rule(m, ng, t):
         gen_info = new_dict[ng]
         max_cap = gen_info.unit_capacity_mw * m.vb[ng]
-        if gen_info.is_variable and ng in inputs.wind_cfs:
+        cf_profile = inputs.vre_cfs.get(ng)
+        if gen_info.is_variable and cf_profile is not None:
             return (
-                m.vPowerNew[ng, t] <= max_cap * inputs.wind_cfs[ng][t]
+                m.vPowerNew[ng, t] <= max_cap * cf_profile[t]
             )
         return m.vPowerNew[ng, t] <= max_cap
 
@@ -85,14 +82,15 @@ def build_and_solve_expansion(
     # 4. PRM Constraint at Peak Hour
     def prm_rule(m, t):
         firm_ex = sum(
-            ex_dict[g].capacity_mw
-            * (inputs.solar_cfs[g][t] if ex_dict[g].is_variable else 1.0)
+            ex_dict[g].capacity_mw * inputs.vre_cfs[g][t]
+            if (ex_dict[g].is_variable and g in inputs.vre_cfs)
+            else ex_dict[g].capacity_mw
             for g in m.EX
         )
         firm_new = sum(
-            new_dict[ng].unit_capacity_mw
-            * m.vb[ng]
-            * (inputs.wind_cfs[ng][t] if new_dict[ng].is_variable else 1.0)
+            new_dict[ng].unit_capacity_mw * m.vb[ng] * inputs.vre_cfs[ng][t]
+            if (new_dict[ng].is_variable and ng in inputs.vre_cfs)
+            else new_dict[ng].unit_capacity_mw * m.vb[ng]
             for ng in m.NEW
         )
         return (firm_ex + firm_new) >= (
@@ -121,7 +119,6 @@ def build_and_solve_expansion(
 
     # Objective Function
     def obj_rule(m):
-        # Existing Fleet OpCost
         cost_ex = sum(
             (
                 ex_dict[g].heat_rate * ex_dict[g].fuel_cost
@@ -131,13 +128,11 @@ def build_and_solve_expansion(
             for g in m.EX
             for t in m.T
         )
-        # New Fleet OpCost
         cost_new_op = sum(
             new_dict[ng].op_cost_per_mwh * m.vPowerNew[ng, t]
             for ng in m.NEW
             for t in m.T
         )
-        # New Fleet Investment Cost (Scaled to simulation horizon)
         cost_new_capex = sum(
             (
                 new_dict[ng].annual_capex_per_mw
@@ -151,26 +146,60 @@ def build_and_solve_expansion(
 
     model.cost = pyo.Objective(rule=obj_rule, sense=pyo.minimize)
 
-    # Solve
+    # ---------------------------------------------------------
+    # STEP 1: Επίλυση MILP (με APPSI ή Standard Solver)
+    # ---------------------------------------------------------
     opt = pyo.SolverFactory(solver_name)
     results = opt.solve(model, tee=False)
 
-    # Parse Outputs
     units_built = {ng: pyo.value(model.vb[ng]) for ng in NEW}
     new_cap_mw = {
         ng: units_built[ng] * new_dict[ng].unit_capacity_mw for ng in NEW
     }
 
+    # ---------------------------------------------------------
+    # STEP 2: Fixing Integers & Conversion to Pure Continuous LP
+    # ---------------------------------------------------------
+    for ng in NEW:
+        model.vb[ng].fix(units_built[ng])
+
+    pyo.TransformationFactory("core.relax_integer_vars").apply_to(model)
+
+    # ---------------------------------------------------------
+    # STEP 3: Επανεπίλυση με Standard Highs Interface για DUALS
+    # ---------------------------------------------------------
+    model.dual = pyo.Suffix(direction=pyo.Suffix.IMPORT)
+    
+    # Χρησιμοποιούμε το standard 'highs' interface που υποστηρίζει πλήρως το Suffix
+    opt_lp = pyo.SolverFactory("appsi_highs")
+    results_lp = opt_lp.solve(model, tee=False)
+
+    marginal_prices = []
+    for t in T:
+        constr = model.sd_constr[t]
+        if constr in model.dual:
+            marginal_prices.append(abs(float(model.dual[constr])))
+        else:
+            marginal_prices.append(0.0)
+    print("LP termination:", results_lp.solver.termination_condition)
+    print("Dual suffix entries:", len(model.dual))
+
+    co2_shadow_price = 0.0#new
+    if inputs.system_params.co2_cap_tons is not None and hasattr(model, "co2_constr"):
+        if model.co2_constr in model.dual:
+            co2_shadow_price = abs(float(model.dual[model.co2_constr]))#new
+
+    # ---------------------------------------------------------
+    # STEP 4: Parsing Αποτελεσμάτων
+    # ---------------------------------------------------------
     gen_tot = {}
     dispatch_profile = {}
 
-    # Extract dispatch profile and total generation for Existing Fleet
     for g in EX:
         profile = [pyo.value(model.vPowerEx[g, t]) for t in T]
         dispatch_profile[g] = profile
         gen_tot[g] = sum(profile)
 
-    # Extract dispatch profile and total generation for Candidate Fleet
     for ng in NEW:
         profile = [pyo.value(model.vPowerNew[ng, t]) for t in T]
         dispatch_profile[ng] = profile
@@ -186,6 +215,10 @@ def build_and_solve_expansion(
         for t in T
     )
 
+    avg_price = (
+        sum(marginal_prices) / len(marginal_prices) if marginal_prices else 0.0
+    )
+
     return ExpansionResults(
         status=str(results.solver.status),
         total_cost=pyo.value(model.cost),
@@ -193,5 +226,7 @@ def build_and_solve_expansion(
         new_capacity_mw=new_cap_mw,
         co2_emissions_tons=total_co2,
         generation_mwh=gen_tot,
-        dispatch_profile_mw=dispatch_profile,  # <--- Populated for plots.py
+        dispatch_profile_mw=dispatch_profile,
+        marginal_prices_per_mwh=marginal_prices,
+        average_marginal_price=avg_price,
     )
