@@ -101,6 +101,7 @@ def build_and_solve_expansion(
 
     # 5. CO2 Cap Constraint (if defined)
     if inputs.system_params.co2_cap_tons is not None:
+        scaled_co2_cap = inputs.system_params.co2_cap_tons * time_scaling_factor
 
         def co2_rule(m):
             co2_ex = sum(
@@ -113,7 +114,7 @@ def build_and_solve_expansion(
                 for ng in m.NEW
                 for t in m.T
             )
-            return (co2_ex + co2_new) <= inputs.system_params.co2_cap_tons
+            return (co2_ex + co2_new) <= scaled_co2_cap
 
         model.co2_constr = pyo.Constraint(rule=co2_rule)
 
@@ -152,7 +153,14 @@ def build_and_solve_expansion(
     opt = pyo.SolverFactory(solver_name)
     results = opt.solve(model, tee=False)
 
-    units_built = {ng: pyo.value(model.vb[ng]) for ng in NEW}
+    #units_built = {ng: pyo.value(model.vb[ng]) for ng in NEW}
+    units_built = {}
+    for ng in NEW:
+        raw_val = pyo.value(model.vb[ng])
+        if new_dict[ng].is_integer:
+            units_built[ng] = round(raw_val)
+        else:
+            units_built[ng] = max(0.0, raw_val)
     new_cap_mw = {
         ng: units_built[ng] * new_dict[ng].unit_capacity_mw for ng in NEW
     }

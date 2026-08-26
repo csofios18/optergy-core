@@ -52,8 +52,8 @@ def build_and_solve_expansion(
     model.vb = pyo.Var(model.NEW_G, domain=vb_domain_rule)
 
     # Storage Decision Variables (Capacity Expansion)
-    model.vCapStorageMW = pyo.Var(model.NEW_S, domain=pyo.NonNegativeReals, bounds=(0, 2000))
-    model.vCapStorageMWh = pyo.Var(model.NEW_S, domain=pyo.NonNegativeReals, bounds=(0, 8000))
+    model.vCapStorageMW = pyo.Var(model.NEW_S, domain=pyo.NonNegativeReals, bounds=lambda m, ns: (0, new_s_dict[ns].max_power_mw))
+    model.vCapStorageMWh = pyo.Var(model.NEW_S, domain=pyo.NonNegativeReals,  bounds=lambda m, ns: (0, new_s_dict[ns].max_energy_mwh))
 
     # Storage Hourly Operation
     model.vDischargeEx = pyo.Var(model.EX_S, model.T, domain=pyo.NonNegativeReals)
@@ -174,6 +174,7 @@ def build_and_solve_expansion(
 
     # 7. CO2 Cap Constraint
     if inputs.system_params.co2_cap_tons is not None:
+        scaled_co2_cap = inputs.system_params.co2_cap_tons * time_scaling_factor
         def co2_rule(m):
             co2_ex = sum(
                 m.vPowerEx[g, t] * ex_g_dict[g].co2_tons_per_mwh
@@ -185,9 +186,19 @@ def build_and_solve_expansion(
                 for ng in m.NEW_G
                 for t in m.T
             )
-            return (co2_ex + co2_new) <= inputs.system_params.co2_cap_tons
+            return (co2_ex + co2_new) <= scaled_co2_cap
 
         model.co2_constr = pyo.Constraint(rule=co2_rule)
+
+    #8. Cycle limit constraint
+    def max_cycles_rule(m, ns):
+        if new_s_dict[ns].max_cycles_per_year is None:
+            return pyo.Constraint.Skip
+        total_discharge = sum(m.vDischargeNew[ns, t] for t in m.T)
+        max_energy_throughput = new_s_dict[ns].max_cycles_per_year * m.vCapStorageMWh[ns] *          time_scaling_factor
+        return total_discharge <= max_energy_throughput
+
+    model.max_cycles_constr = pyo.Constraint(model.NEW_S, rule=max_cycles_rule)
 
     # --- OBJECTIVE FUNCTION ---
     def obj_rule(m):
@@ -226,6 +237,10 @@ def build_and_solve_expansion(
             * time_scaling_factor
             for ns in m.NEW_S
         )
+        cost_s_degradation = sum(
+            new_s_dict[ns].degradation_cost_per_mwh * m.vDischargeNew[ns, t]
+            for ns in m.NEW_S for t in m.T
+        )
 
         return (
             cost_ex_op
@@ -234,6 +249,7 @@ def build_and_solve_expansion(
             + cost_s_ex_op
             + cost_s_new_op
             + cost_s_capex
+            + cost_s_degradation
         )
 
     model.cost = pyo.Objective(rule=obj_rule, sense=pyo.minimize)
@@ -244,7 +260,14 @@ def build_and_solve_expansion(
     opt = pyo.SolverFactory(solver_name)
     results = opt.solve(model, tee=False)
 
-    units_built = {ng: pyo.value(model.vb[ng]) for ng in NEW_G}
+    #units_built = {ng: pyo.value(model.vb[ng]) for ng in NEW_G}
+    units_built = {}
+    for ng in NEW_G:
+        raw_val = pyo.value(model.vb[ng])
+        if new_g_dict[ng].is_integer:
+            units_built[ng] = round(raw_val)
+        else:
+            units_built[ng] = max(0.0, raw_val)
     new_cap_mw = {ng: units_built[ng] * new_g_dict[ng].unit_capacity_mw for ng in NEW_G}
     
     new_s_mw = {ns: pyo.value(model.vCapStorageMW[ns]) for ns in NEW_S}
@@ -280,16 +303,30 @@ def build_and_solve_expansion(
     dispatch_profile = {}
     charge_profile = {}
     soc_profile = {}
+    curtailment_profile = {}
 
     for g in EX_G:
         profile = [pyo.value(model.vPowerEx[g, t]) for t in T]
         dispatch_profile[g] = profile
         gen_tot[g] = sum(profile)
+        
+        if ex_g_dict[g].is_variable and g in inputs.vre_cfs:
+            curtailment_profile[g] = [
+                max(0.0, ex_g_dict[g].capacity_mw * inputs.vre_cfs[g][t] - profile[t])
+                for t in T
+            ]
 
     for ng in NEW_G:
         profile = [pyo.value(model.vPowerNew[ng, t]) for t in T]
         dispatch_profile[ng] = profile
         gen_tot[ng] = sum(profile)
+        
+        if new_g_dict[ng].is_variable and ng in inputs.vre_cfs:
+            available_cap = new_g_dict[ng].unit_capacity_mw * units_built[ng]
+            curtailment_profile[ng] = [
+                max(0.0, available_cap * inputs.vre_cfs[ng][t] - profile[t])
+                for t in T
+            ]
 
     for s in EX_S:
         dispatch_profile[s] = [pyo.value(model.vDischargeEx[s, t]) for t in T]
@@ -327,6 +364,7 @@ def build_and_solve_expansion(
         dispatch_profile_mw=dispatch_profile,
         charge_profile_mw=charge_profile,
         soc_profile_mwh=soc_profile,
+        curtailment_mw=curtailment_profile,
         marginal_prices_per_mwh=marginal_prices,
         average_marginal_price=avg_price,
     )

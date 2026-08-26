@@ -47,8 +47,11 @@ class CandidateStorage(BaseModel):
     round_trip_efficiency: float = Field(..., gt=0, le=1.0)
     vom_cost_per_mwh: float = Field(default=0.0, ge=0)
     max_duration_hours: Optional[float] = None       # Προαιρετικό ανώτατο όριο C-rate (MWh/MW)
+    max_power_mw: Optional[float] = None
+    max_energy_mwh: Optional[float] = None
     is_integer: bool = False                         # Συνεχές sizing κατά κανόνα
-
+    degradation_cost_per_mwh: float = Field(default=0.0, ge=0)
+    max_cycles_per_year: Optional[float] = None
 
 class SystemParameters(BaseModel):
     prm_margin: float = Field(default=1.15, ge=1.0)  # 1.15 = 115% της αιχμής
@@ -76,6 +79,7 @@ class ExpansionResults(BaseModel):
     dispatch_profile_mw: Dict[str, List[float]] = Field(default_factory=dict)  # Required for plots.py
     charge_profile_mw: Dict[str, List[float]] = Field(default_factory=dict)   # Φόρτιση (MW)
     soc_profile_mwh: Dict[str, List[float]] = Field(default_factory=dict)      # SOC (MWh)
+    curtailment_mw: Dict[str, List[float]] = Field(default_factory=dict)
     marginal_prices_per_mwh: List[float] = Field(default_factory=list)
     average_marginal_price: float = 0.0
 
